@@ -13,12 +13,17 @@ from flask_login import (
     current_user,
 )
 from datetime import datetime
+from flask_cors import CORS
 
 # Load environment variables
 load_dotenv(find_dotenv())
 
 # Flask app setup
 app = flask.Flask(__name__)
+
+CORS(
+    app, supports_credentials=True, origins=["http://localhost:3000"]
+)  # Enable CORS for all routes
 
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     f"postgresql://postgres:uag625@localhost:5432/postgres"
@@ -109,94 +114,111 @@ def wiki_data(movie_title):
 
 
 # Routes
-@app.route("/")
-@login_required
+@app.route("/", methods=["GET"])
 def index():
+    if not current_user.is_authenticated:
+        return flask.jsonify({"error": "Unauthorized"}), 401
     """Homepage displaying a random movie and user comments."""
     movie_id = random.choice(MOVIE_ID_LIST)
     movie_data = tmdb_data(movie_id)
 
     if not movie_data:
-        return "Error: Could not fetch movie data", 500
+        return flask.jsonify({"error": "Could not fetch movie data"}), 500
 
-    movie_title = movie_data.get("original_title", "Unknown Title")
-    tagline = movie_data.get("tagline", "")
-    genre = (
-        ", ".join([g["name"] for g in movie_data.get("genres", [])]) or "Unknown Genre"
-    )
-    poster_url = f"https://image.tmdb.org/t/p/w500{movie_data.get('poster_path', '')}"
-    wiki_url = wiki_data(movie_title)
+    movie_info = {
+        "title": movie_data.get("original_title", "Unknown Title"),
+        "tagline": movie_data.get("tagline", ""),
+        "genre": [g["name"] for g in movie_data.get("genres", [])],
+        "poster_url": f"https://image.tmdb.org/t/p/w500{movie_data.get('poster_path', '')}",
+        "movie_id": movie_id,
+    }
 
     ratings = Rating.query.filter_by(movie_id=movie_id).all()
 
-    return flask.render_template(
-        "index.html",
-        title=movie_title,
-        tagline=tagline,
-        genre=genre,
-        poster_url=poster_url,
-        wiki_url=wiki_url,
-        movie_id=movie_id,
-        ratings=ratings,
-    )
+    rating_list = [
+        {
+            "id": r.id,
+            "user_id": r.user_id,
+            "movie_id": r.movie_id,
+            "rating_value": r.rating_value,
+            "comment": r.comment,
+            "timestamp": r.timestamp,
+        }
+        for r in ratings
+    ]
+
+    return flask.jsonify({"movie": movie_info, "ratings": rating_list})
 
 
-@app.route("/signup", methods=["GET", "POST"])
+@app.route("/signup", methods=["POST"])
 def signup():
-    """Signup page where users can create an account."""
-    if flask.request.method == "POST":
-        username = flask.request.form.get("username").strip()
-        if not username:
-            flask.flash("Username cannot be empty", "danger")
-            return flask.redirect(flask.url_for("signup"))
+    data = flask.request.json
+    if not data:
+        return flask.jsonify({"error": "Invalid JSON data"}), 400
 
-        if User.query.filter_by(username=username).first():
-            flask.flash("Username already exists!", "danger")
-            return flask.redirect(flask.url_for("signup"))
+    username = data.get("username", "").strip()
 
-        new_user = User(username=username)
-        db.session.add(new_user)
-        db.session.commit()
+    if not username:
+        return flask.jsonify({"error": "Username cannot be empty"}), 400
 
-        flask.flash("Signup successful! Please login.", "success")
-        return flask.redirect(flask.url_for("login"))
+    if User.query.filter_by(username=username).first():
+        return flask.jsonify({"error": "Username already exists!"}), 400
 
-    return flask.render_template("signup.html")
+    new_user = User(username=username)
+    db.session.add(new_user)
+    db.session.commit()
+
+    return flask.jsonify({"message": "Signup successful! Please login."}), 201
 
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login", methods=["POST"])
 def login():
-    """Login page where users authenticate using only their username."""
-    if flask.request.method == "POST":
-        username = flask.request.form.get("username").strip()
-        user = User.query.filter_by(username=username).first()
+    # Login page where users authenticate using their username.
+    data = flask.request.json
+    username = data.get("username", "").strip()
+    user = User.query.filter_by(username=username).first()
 
-        if user:
-            login_user(user)
-            flask.flash("Login successful!", "success")
-            return flask.redirect(flask.url_for("index"))
-        else:
-            flask.flash("Invalid username", "danger")
-            return flask.redirect(flask.url_for("login"))
-
-    return flask.render_template("login.html")
+    if user:
+        login_user(user)
+        return flask.jsonify({"message": "Login successful!", "user_id": user.id}), 200
+    else:
+        return flask.jsonify({"error": "Invalid username"}), 401
 
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 @login_required
 def logout():
-    """Logs the user out and redirects to login."""
+    # Logs the user out
     logout_user()
-    return flask.redirect(flask.url_for("login"))
+    return flask.jsonify({"message": "Logout successful"}), 200
 
 
-@app.route("/rate", methods=["POST"])
+@app.route("/comments", methods=["GET"])
+def get_comments():
+    """Fetches all comments and ratings."""
+    ratings = Rating.query.all()
+    rating_list = [
+        {
+            "id": r.id,
+            "user_id": r.user_id,
+            "movie_id": r.movie_id,
+            "rating_value": r.rating_value,
+            "comment": r.comment,
+            "timestamp": r.timestamp,
+        }
+        for r in ratings
+    ]
+    return flask.jsonify(rating_list), 200
+
+
+@app.route("/comments", methods=["POST"], strict_slashes=False)
 @login_required
 def rate_movie():
     """Allows users to rate a movie and leave a comment."""
-    movie_id = flask.request.form.get("movie_id")
-    rating_value = int(flask.request.form.get("rating"))
-    comment = flask.request.form.get("comment").strip()
+    data = flask.request.json
+    movie_id = data.get("movie_id")
+    rating_value = int(data.get("rating"))
+    comment = data.get("comment", "").strip()
 
     existing_rating = Rating.query.filter_by(
         user_id=current_user.id, movie_id=movie_id
@@ -215,9 +237,43 @@ def rate_movie():
         db.session.add(new_rating)
 
     db.session.commit()
-    flask.flash("Your rating has been saved!", "success")
-    return flask.redirect(flask.url_for("index"))
+    return flask.jsonify({"message": "Your rating has been saved!"}), 201
+
+
+@app.route("/comments/<int:comment_id>", methods=["PUT"])
+@login_required
+def update_comment(comment_id):
+    """Updates a user’s rating/comment."""
+    data = flask.request.json
+    rating_value = int(data.get("rating"))
+    comment = data.get("comment", "").strip()
+
+    rating = Rating.query.filter_by(id=comment_id, user_id=current_user.id).first()
+
+    if not rating:
+        return flask.jsonify({"error": "Comment not found"}), 404
+
+    rating.rating_value = rating_value
+    rating.comment = comment
+    db.session.commit()
+
+    return flask.jsonify({"message": "Comment updated successfully!"}), 200
+
+
+@app.route("/comments/<int:comment_id>", methods=["DELETE"])
+@login_required
+def delete_comment(comment_id):
+    # Deletes a user’s rating/comment.
+    rating = Rating.query.filter_by(id=comment_id, user_id=current_user.id).first()
+
+    if not rating:
+        return flask.jsonify({"error": "Comment not found"}), 404
+
+    db.session.delete(rating)
+    db.session.commit()
+
+    return flask.jsonify({"message": "Comment deleted successfully!"}), 200
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=os.getenv("PORT", 8080))
+    app.run(host="0.0.0.0", port=os.getenv("PORT", 8080), debug=True)
