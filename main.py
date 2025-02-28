@@ -18,12 +18,13 @@ from flask_cors import CORS
 # Load environment variables
 load_dotenv(find_dotenv())
 
-# Flask app setup
 app = flask.Flask(__name__)
 
 CORS(
-    app, supports_credentials=True, origins=["http://localhost:3000"]
-)  # Enable CORS for all routes
+    app,
+    supports_credentials=True,
+    origins=["http://localhost:3000", "http://localhost:3001"],
+)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     f"postgresql://postgres:uag625@localhost:5432/postgres"

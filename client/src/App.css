@@ -1,38 +1,256 @@
-.App {
+body {
+  font-family: Arial, sans-serif;
+  background-color: whitesmoke;
+  color: #333;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
   text-align: center;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+#root {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+  min-height: 100vh;
+}
+
+header {
+  font-family: Garamond, serif;
+  width: 100%;
+  background-color: #985656;
   color: white;
+  padding: 20px 0;
+  text-align: center;
+  font-size: 1.5em;
+  font-weight: bold;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
 }
 
-.App-link {
-  color: #61dafb;
+.user-info {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8em;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+.user-info button {
+  background: transparent;
+  border: 1px solid white;
+  color: white;
+  margin-left: 10px;
+  padding: 5px 10px;
+}
+
+.user-info button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+h1 {
+  font-size: 2.5em;
+  color: #333;
+  margin-top: 100px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+h2 {
+  font-size: 1.5em;
+  color: #555;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+h3 {
+  font-size: 1.3em;
+  color: #444;
+  margin: 30px 0 15px;
+}
+
+.movie-container {
+  margin-top: 100px;
+  margin-bottom: 50px;
+  background-color: palevioletred;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 30px;
+  width: 80%;
+  max-width: 800px;
+  text-align: center;
+  transition: transform 0.3s ease-in-out;
+}
+
+.movie-container:hover {
+  transform: translateY(-5px);
+}
+
+img {
+  max-width: 100%;
+  margin: 20px 0;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+p.genre {
+  font-weight: bold;
+  font-size: 1.1em;
+  margin-bottom: 15px;
+}
+
+a {
+  font-size: 1.2em;
+  color: #007BFF;
+  text-decoration: none;
+  font-weight: bold;
+  transition: color 0.3s;
+}
+
+a:hover {
+  color: #0056b3;
+}
+
+/* Form styles */
+.form-group {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+  color: #333;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 1em;
+  background-color: white;
+}
+
+.form-group textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+/* Authentication container */
+.auth-container {
+  margin-top: 120px;
+  background-color: white;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 30px;
+  width: 90%;
+  max-width: 400px;
+}
+
+.auth-container h2 {
+  color: #985656;
+  margin-bottom: 25px;
+}
+
+.auth-container p {
+  margin-top: 20px;
+}
+
+/* Ratings display */
+.ratings-display {
+  margin-top: 40px;
+  text-align: left;
+}
+
+.rating-item {
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.rating-item p {
+  margin: 5px 0;
+}
+
+.comment {
+  font-style: italic;
+  color: #555;
+  margin-top: 8px;
+  padding-left: 10px;
+  border-left: 3px solid #ddd;
+}
+
+/* Rating form */
+.rating-form {
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 20px;
+  border-radius: 5px;
+  margin-top: 10px;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 768px) {
+  .movie-container {
+    padding: 20px;
+    width: 90%;
+    margin-top: 80px;
   }
-  to {
-    transform: rotate(360deg);
+
+  header {
+    padding: 15px 0;
+  }
+
+  h1 {
+    font-size: 2em;
+    margin-top: 90px;
+  }
+
+  h2 {
+    font-size: 1.3em;
+  }
+
+  .auth-container {
+    margin-top: 100px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .movie-container {
+    padding: 15px;
+    width: 95%;
+  }
+
+  h1 {
+    font-size: 1.8em;
+  }
+
+  .user-info {
+    position: static;
+    margin-top: 10px;
+    transform: none;
   }
 }

@@ -1,7 +1,8 @@
-
-import { useState } from "react";
+import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+
+const API_URL = "http://172.19.144.56:8080";
 
 const Signup = () => {
     const [username, setUsername] = useState("");
@@ -9,22 +10,58 @@ const Signup = () => {
 
     const handleSignup = async (e) => {
         e.preventDefault();
+
         try {
-            await axios.post("http://localhost:8080/signup", { username });
+            // Configure axios defaults
+            axios.defaults.withCredentials = true;
+
+            const response = await axios.post(
+                `${API_URL}/signup`,
+                { username },
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            console.log("Signup response:", response);
+
             alert("Signup successful! Please login.");
-            navigate("/login"); // Redirect to login
+            navigate("/login");
         } catch (error) {
-            alert("Signup failed! " + (error.response?.data?.error || "Something went wrong"));
+            console.error("Signup error:", error);
+            alert(
+                "Signup failed! " +
+                (error.response?.data?.error || error.message || "Something went wrong")
+            );
         }
     };
 
     return (
-        <div>
-            <h2>Signup</h2>
+        <div className="auth-container">
+            <header>The Movie Explorer</header>
+            <h2>Sign Up</h2>
+
             <form onSubmit={handleSignup}>
-                <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" required />
-                <button type="submit">Signup</button>
+                <div className="form-group">
+                    <label htmlFor="username">Username:</label>
+                    <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        required
+                        placeholder="Choose a username"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                    />
+                </div>
+                <button type="submit">Sign Up</button>
             </form>
+
+            <p>
+                Already have an account? <a href="/login">Login</a>
+            </p>
         </div>
     );
 };
