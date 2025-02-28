@@ -1,47 +1,56 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 const API_URL = "http://172.19.144.56:8080";
 
 const Login = ({ setUser }) => {
     const [username, setUsername] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
         e.preventDefault();
-
-        // Configure axios defaults for this request
-        axios.defaults.withCredentials = true;
+        setIsLoading(true);
+        setError("");
 
         try {
-            const response = await axios.post(
-                `${API_URL}/login`,
-                { username },
-                {
-                    withCredentials: true,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+            console.log("Attempting login for user:", username);
 
-            // Check if the response has user data
-            if (response.data && response.data.username) {
-                setUser(response.data.username);
-            } else {
-                // If backend doesn't return username, use the one from form
-                setUser(username);
+            const response = await fetch(`${API_URL}/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username }),
+                credentials: 'include'
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Login failed');
             }
 
-            alert("Login successful!");
-            navigate("/");
+            console.log("Login successful:", data);
+            setUser(username);
+
+            const authCheck = await fetch(`${API_URL}/check-auth`, {
+                credentials: 'include'
+            });
+
+            if (authCheck.ok) {
+                console.log("Authentication check passed");
+                navigate("/");
+            } else {
+                console.warn("Login appeared successful but auth check failed");
+                throw new Error("Authentication failed after login");
+            }
         } catch (error) {
             console.error("Login error:", error);
-            alert(
-                "Login failed! " +
-                (error.response?.data?.error || error.message || "Something went wrong")
-            );
+            setError(error.message || "Login failed. Please try again.");
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -49,6 +58,8 @@ const Login = ({ setUser }) => {
         <div className="auth-container">
             <header>The Movie Explorer</header>
             <h2>Login</h2>
+
+            {error && <div className="error-message">{error}</div>}
 
             <form onSubmit={handleLogin}>
                 <div className="form-group">
@@ -61,9 +72,12 @@ const Login = ({ setUser }) => {
                         placeholder="Enter your username"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
+                        disabled={isLoading}
                     />
                 </div>
-                <button type="submit">Login</button>
+                <button type="submit" disabled={isLoading}>
+                    {isLoading ? "Logging in..." : "Login"}
+                </button>
             </form>
 
             <p>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 const API_URL = "http://172.19.144.56:8080";
@@ -9,95 +8,128 @@ const Home = ({ currentUser, onLogout }) => {
     const [ratings, setRatings] = useState([]);
     const [rating, setRating] = useState("");
     const [comment, setComment] = useState("");
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
     const navigate = useNavigate();
 
     useEffect(() => {
-        // Set axios defaults
-        axios.defaults.withCredentials = true;
+        const checkAuthAndFetchData = async () => {
+            try {
+                // First check if we're authenticated
+                const authResponse = await fetch(`${API_URL}/check-auth`, {
+                    method: 'GET',
+                    credentials: 'include',
+                });
 
-        // Fetch movie data
-        axios.get(`${API_URL}/`, {
-            withCredentials: true,
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-            .then((response) => {
-                if (response.data && response.data.movie) {
-                    setMovie(response.data.movie);
-                    setRatings(response.data.ratings || []);
-                } else {
-                    console.error("Invalid response format:", response.data);
+                if (!authResponse.ok) {
+                    throw new Error('Not authenticated');
                 }
-            })
-            .catch((error) => {
-                console.error("Error fetching data:", error);
-                if (error.response && error.response.status === 401) {
-                    // Handle unauthorized error
+
+                // Now fetch the movie data
+                const dataResponse = await fetch(`${API_URL}/`, {
+                    method: 'GET',
+                    credentials: 'include',
+                });
+
+                if (!dataResponse.ok) {
+                    throw new Error('Failed to fetch movie data');
+                }
+
+                const data = await dataResponse.json();
+
+                if (data && data.movie) {
+                    setMovie(data.movie);
+                    setRatings(data.ratings || []);
+                } else {
+                    throw new Error('Invalid response format');
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                setError(error.message);
+
+                if (error.message === 'Not authenticated') {
                     handleLogout();
                 }
-            });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        checkAuthAndFetchData();
     }, []);
 
-    const handleLogout = () => {
-        axios.post(`${API_URL}/logout`, {}, {
-            withCredentials: true,
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-            .then(() => {
-                if (onLogout) onLogout();
-                navigate("/login");
-            })
-            .catch(err => {
-                console.error("Logout error:", err);
-                // Force logout even if API call fails
-                if (onLogout) onLogout();
-                navigate("/login");
+    const handleLogout = async () => {
+        try {
+            await fetch(`${API_URL}/logout`, {
+                method: 'POST',
+                credentials: 'include',
             });
+        } catch (error) {
+            console.error("Logout error:", error);
+        } finally {
+            // Always execute the logout regardless of backend response
+            if (onLogout) onLogout();
+            navigate("/login");
+        }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!movie) return;
 
+        setIsLoading(true);
+
         try {
-            await axios.post(`${API_URL}/comments`, {
-                movie_id: movie.movie_id,
-                rating: rating,
-                comment: comment,
-            }, {
-                withCredentials: true,
+            const response = await fetch(`${API_URL}/comments`, {
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                }
+                },
+                body: JSON.stringify({
+                    movie_id: movie.movie_id,
+                    rating: rating,
+                    comment: comment
+                }),
+                credentials: 'include'
             });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to submit rating');
+            }
 
             alert("Rating submitted!");
             setRating("");
             setComment("");
 
             // Refresh ratings after submission
-            axios.get(`${API_URL}/`, {
-                withCredentials: true,
-                headers: {
-                    'Content-Type': 'application/json'
+            const refreshResponse = await fetch(`${API_URL}/`, {
+                method: 'GET',
+                credentials: 'include',
+            });
+
+            if (refreshResponse.ok) {
+                const refreshData = await refreshResponse.json();
+                if (refreshData && refreshData.ratings) {
+                    setRatings(refreshData.ratings);
                 }
-            })
-                .then((response) => {
-                    if (response.data && response.data.ratings) {
-                        setRatings(response.data.ratings);
-                    }
-                })
-                .catch((error) => console.error("Error refreshing data:", error));
+            }
         } catch (error) {
             console.error("Error submitting rating:", error);
-            alert("Error submitting rating: " + (error.response?.data?.error || error.message || "Unknown error"));
+            alert("Error submitting rating: " + (error.message || "Unknown error"));
+
+            // If we get a 401, we should log out
+            if (error.message === 'Unauthorized') {
+                handleLogout();
+            }
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    if (!movie) return <h2>Loading movie details...</h2>;
+    if (isLoading) return <h2>Loading movie details...</h2>;
+    if (error) return <h2>Error: {error}</h2>;
+    if (!movie) return <h2>No movie data available</h2>;
 
     return (
         <div className="movie-container">
@@ -131,6 +163,7 @@ const Home = ({ currentUser, onLogout }) => {
                             required
                             value={rating}
                             onChange={(e) => setRating(e.target.value)}
+                            disabled={isLoading}
                         />
                     </div>
                     <div className="form-group">
@@ -140,9 +173,12 @@ const Home = ({ currentUser, onLogout }) => {
                             name="comment"
                             value={comment}
                             onChange={(e) => setComment(e.target.value)}
+                            disabled={isLoading}
                         ></textarea>
                     </div>
-                    <button type="submit">Submit Rating</button>
+                    <button type="submit" disabled={isLoading}>
+                        {isLoading ? "Submitting..." : "Submit Rating"}
+                    </button>
                 </form>
             </div>
 

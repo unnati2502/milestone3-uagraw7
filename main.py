@@ -14,6 +14,7 @@ from flask_login import (
 )
 from datetime import datetime
 from flask_cors import CORS
+from flask import session
 
 # Load environment variables
 load_dotenv(find_dotenv())
@@ -24,12 +25,17 @@ CORS(
     app,
     supports_credentials=True,
     origins=["http://localhost:3000", "http://localhost:3001"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     f"postgresql://postgres:uag625@localhost:5432/postgres"
 )
 app.secret_key = "I am a secret key!"
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SECURE"] = True
 
 # Database setup
 db = SQLAlchemy(app)
@@ -117,8 +123,15 @@ def wiki_data(movie_title):
 # Routes
 @app.route("/", methods=["GET"])
 def index():
+    # Add debug logging to see what's happening
+    print(f"Is authenticated: {current_user.is_authenticated}")
+    if hasattr(current_user, "id"):
+        print(f"Current user ID: {current_user.id}")
+
     if not current_user.is_authenticated:
+        print("User not authenticated, returning 401")
         return flask.jsonify({"error": "Unauthorized"}), 401
+
     """Homepage displaying a random movie and user comments."""
     movie_id = random.choice(MOVIE_ID_LIST)
     movie_data = tmdb_data(movie_id)
@@ -143,7 +156,7 @@ def index():
             "movie_id": r.movie_id,
             "rating_value": r.rating_value,
             "comment": r.comment,
-            "timestamp": r.timestamp,
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
         }
         for r in ratings
     ]
@@ -176,21 +189,41 @@ def signup():
 def login():
     # Login page where users authenticate using their username.
     data = flask.request.json
+    if not data:
+        return flask.jsonify({"error": "Invalid JSON data"}), 400
+
     username = data.get("username", "").strip()
     user = User.query.filter_by(username=username).first()
 
     if user:
         login_user(user)
-        return flask.jsonify({"message": "Login successful!", "user_id": user.id}), 200
+        session.permanent = True
+        session.modified = True
+
+        print(f"User {user.id} ({user.username}) logged in successfully")
+        print(f"Is authenticated after login: {current_user.is_authenticated}")
+
+        return (
+            flask.jsonify(
+                {
+                    "message": "Login successful!",
+                    "username": user.username,
+                    "user_id": user.id,
+                }
+            ),
+            200,
+        )
     else:
         return flask.jsonify({"error": "Invalid username"}), 401
 
 
 @app.route("/logout", methods=["POST"])
-@login_required
 def logout():
-    # Logs the user out
-    logout_user()
+    # We're removing the @login_required here because it can cause problems when sessions expire
+    if current_user.is_authenticated:
+        print(f"Logging out user: {current_user.id}")
+        logout_user()
+
     return flask.jsonify({"message": "Logout successful"}), 200
 
 
@@ -205,7 +238,7 @@ def get_comments():
             "movie_id": r.movie_id,
             "rating_value": r.rating_value,
             "comment": r.comment,
-            "timestamp": r.timestamp,
+            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
         }
         for r in ratings
     ]
@@ -217,9 +250,16 @@ def get_comments():
 def rate_movie():
     """Allows users to rate a movie and leave a comment."""
     data = flask.request.json
+    if not data:
+        return flask.jsonify({"error": "Invalid JSON data"}), 400
+
     movie_id = data.get("movie_id")
     rating_value = int(data.get("rating"))
     comment = data.get("comment", "").strip()
+
+    print(
+        f"Saving rating: User {current_user.id}, Movie {movie_id}, Rating {rating_value}"
+    )
 
     existing_rating = Rating.query.filter_by(
         user_id=current_user.id, movie_id=movie_id
@@ -244,7 +284,7 @@ def rate_movie():
 @app.route("/comments/<int:comment_id>", methods=["PUT"])
 @login_required
 def update_comment(comment_id):
-    """Updates a user’s rating/comment."""
+    """Updates a user's rating/comment."""
     data = flask.request.json
     rating_value = int(data.get("rating"))
     comment = data.get("comment", "").strip()
@@ -264,7 +304,7 @@ def update_comment(comment_id):
 @app.route("/comments/<int:comment_id>", methods=["DELETE"])
 @login_required
 def delete_comment(comment_id):
-    # Deletes a user’s rating/comment.
+    # Deletes a user's rating/comment.
     rating = Rating.query.filter_by(id=comment_id, user_id=current_user.id).first()
 
     if not rating:
@@ -274,6 +314,24 @@ def delete_comment(comment_id):
     db.session.commit()
 
     return flask.jsonify({"message": "Comment deleted successfully!"}), 200
+
+
+# Add a route to check authentication status
+@app.route("/check-auth", methods=["GET"])
+def check_auth():
+    if current_user.is_authenticated:
+        return (
+            flask.jsonify(
+                {
+                    "authenticated": True,
+                    "username": current_user.username,
+                    "user_id": current_user.id,
+                }
+            ),
+            200,
+        )
+    else:
+        return flask.jsonify({"authenticated": False}), 401
 
 
 if __name__ == "__main__":

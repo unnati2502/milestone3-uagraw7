@@ -1,40 +1,45 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 const API_URL = "http://172.19.144.56:8080";
 
 const Signup = () => {
     const [username, setUsername] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
     const navigate = useNavigate();
 
     const handleSignup = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
+        setError("");
 
         try {
-            // Configure axios defaults
-            axios.defaults.withCredentials = true;
+            console.log("Attempting signup for user:", username);
 
-            const response = await axios.post(
-                `${API_URL}/signup`,
-                { username },
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+            const response = await fetch(`${API_URL}/signup`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username }),
+                credentials: 'include'
+            });
 
-            console.log("Signup response:", response);
+            const data = await response.json();
 
+            if (!response.ok) {
+                throw new Error(data.error || 'Signup failed');
+            }
+
+            console.log("Signup successful");
             alert("Signup successful! Please login.");
             navigate("/login");
         } catch (error) {
             console.error("Signup error:", error);
-            alert(
-                "Signup failed! " +
-                (error.response?.data?.error || error.message || "Something went wrong")
-            );
+            setError(error.message || "Signup failed. Please try again.");
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -42,6 +47,8 @@ const Signup = () => {
         <div className="auth-container">
             <header>The Movie Explorer</header>
             <h2>Sign Up</h2>
+
+            {error && <div className="error-message">{error}</div>}
 
             <form onSubmit={handleSignup}>
                 <div className="form-group">
@@ -54,9 +61,12 @@ const Signup = () => {
                         placeholder="Choose a username"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
+                        disabled={isLoading}
                     />
                 </div>
-                <button type="submit">Sign Up</button>
+                <button type="submit" disabled={isLoading}>
+                    {isLoading ? "Signing up..." : "Sign Up"}
+                </button>
             </form>
 
             <p>
