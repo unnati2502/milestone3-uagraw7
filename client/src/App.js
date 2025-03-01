@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Home from './home.js';
 import Login from "./login.js";
 import Signup from "./signup.js";
+import Ratings from "./ratings";
 
 function App() {
   const [user, setUser] = useState(localStorage.getItem('user'));
@@ -35,6 +36,7 @@ function App() {
         />
         <Route path="/login" element={<Login setUser={setUser} />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/ratings" element={<Ratings />} />
       </Routes>
     </Router>
   );

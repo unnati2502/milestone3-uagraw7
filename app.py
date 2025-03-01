@@ -15,6 +15,8 @@ from flask_login import (
 from datetime import datetime
 from flask_cors import CORS
 from flask import session
+from datetime import timedelta
+
 
 # Load environment variables
 load_dotenv(find_dotenv())
@@ -24,7 +26,11 @@ app = flask.Flask(__name__)
 CORS(
     app,
     supports_credentials=True,
-    origins=["http://localhost:3000", "http://localhost:3001"],
+    origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://172.19.144.56:300",
+    ],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
@@ -35,7 +41,30 @@ app.config["SQLALCHEMY_DATABASE_URI"] = (
 app.secret_key = "I am a secret key!"
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_SECURE"] = False
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=1)
+
+
+@app.route("/login", methods=["OPTIONS"])
+def handle_preflight():
+    response = flask.make_response()
+    response.headers.add("Access-Control-Allow-Origin", "http://172.19.144.56:3001")
+    response.headers.add("Access-Control-Allow-Credentials", "true")
+    response.headers.add(
+        "Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"
+    )
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    return response
+
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "http://172.19.144.56:3001"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
+
 
 # Database setup
 db = SQLAlchemy(app)
@@ -122,17 +151,8 @@ def wiki_data(movie_title):
 
 # Routes
 @app.route("/", methods=["GET"])
+@login_required
 def index():
-    # Add debug logging to see what's happening
-    print(f"Is authenticated: {current_user.is_authenticated}")
-    if hasattr(current_user, "id"):
-        print(f"Current user ID: {current_user.id}")
-
-    if not current_user.is_authenticated:
-        print("User not authenticated, returning 401")
-        return flask.jsonify({"error": "Unauthorized"}), 401
-
-    """Homepage displaying a random movie and user comments."""
     movie_id = random.choice(MOVIE_ID_LIST)
     movie_data = tmdb_data(movie_id)
 
@@ -219,7 +239,7 @@ def login():
 
 @app.route("/logout", methods=["POST"])
 def logout():
-    # We're removing the @login_required here because it can cause problems when sessions expire
+
     if current_user.is_authenticated:
         print(f"Logging out user: {current_user.id}")
         logout_user()
@@ -228,9 +248,11 @@ def logout():
 
 
 @app.route("/comments", methods=["GET"])
+@login_required
 def get_comments():
-    """Fetches all comments and ratings."""
-    ratings = Rating.query.all()
+
+    user_id = current_user.id
+    ratings = Rating.query.filter_by(user_id=user_id).all()
     rating_list = [
         {
             "id": r.id,
@@ -316,7 +338,6 @@ def delete_comment(comment_id):
     return flask.jsonify({"message": "Comment deleted successfully!"}), 200
 
 
-# Add a route to check authentication status
 @app.route("/check-auth", methods=["GET"])
 def check_auth():
     if current_user.is_authenticated:

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 const API_URL = "http://172.19.144.56:8080";
@@ -12,10 +12,23 @@ const Home = ({ currentUser, onLogout }) => {
     const [error, setError] = useState(null);
     const navigate = useNavigate();
 
+    const handleLogout = useCallback(async () => {
+        try {
+            await fetch(`${API_URL}/logout`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+        } catch (error) {
+            console.error("Logout error:", error);
+        } finally {
+            if (onLogout) onLogout();
+            navigate("/login");
+        }
+    }, [onLogout, navigate]);
+
     useEffect(() => {
         const checkAuthAndFetchData = async () => {
             try {
-                // First check if we're authenticated
                 const authResponse = await fetch(`${API_URL}/check-auth`, {
                     method: 'GET',
                     credentials: 'include',
@@ -56,22 +69,7 @@ const Home = ({ currentUser, onLogout }) => {
         };
 
         checkAuthAndFetchData();
-    }, []);
-
-    const handleLogout = async () => {
-        try {
-            await fetch(`${API_URL}/logout`, {
-                method: 'POST',
-                credentials: 'include',
-            });
-        } catch (error) {
-            console.error("Logout error:", error);
-        } finally {
-            // Always execute the logout regardless of backend response
-            if (onLogout) onLogout();
-            navigate("/login");
-        }
-    };
+    }, [handleLogout]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -180,6 +178,9 @@ const Home = ({ currentUser, onLogout }) => {
                         {isLoading ? "Submitting..." : "Submit Rating"}
                     </button>
                 </form>
+                <div className="ratings-link">
+                    <a href="/ratings">View My Ratings</a>
+                </div>
             </div>
 
             <div className="ratings-display">
@@ -194,7 +195,7 @@ const Home = ({ currentUser, onLogout }) => {
                         </div>
                     ))
                 ) : (
-                    <p>No ratings yet. Start rating!</p>
+                    <p>No ratings yet. Be the first one to rate this movie!</p>
                 )}
             </div>
         </div>
